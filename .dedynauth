@@ -1,8 +1,6 @@
-#!/bin/bash
-
 # Place your dedyn.io access token here:
-export DEDYN_TOKEN=d41d8cd98f00b204e9800998ecf8427e
+DEDYN_TOKEN=d41d8cd98f00b204e9800998ecf8427e
 
 # Set your dedyn.io domain name here:
-export DEDYN_NAME=example.dedyn.io
+DEDYN_NAME=example.dedyn.io
 
