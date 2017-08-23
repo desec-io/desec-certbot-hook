@@ -33,18 +33,20 @@ if [[ ! $(type -P curl) ]] ; then
     exit 4
 fi
 
->&2 echo "Setting challenge to ${CERTBOT_VALIDATION}..."
+>&2 echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
 
-TOKEN=$CERTBOT_VALIDATION
+args=( \
+    '-Ss' \
+    '-H' "Authorization: Token $DEDYN_TOKEN" \
+    '-H' 'Accept: application/json' \
+    '-H' 'Content-Type: application/json' \
+    '-d' '{"subname":"_acme-challenge", "type":"TXT", "records":["\"'"$CERTBOT_VALIDATION"'\""], "ttl":60}' \
+    '-o' '/dev/null' \
+)
 
-# be silent unless error, server response will still be written to output
-curl -X PATCH https://desec.io/api/v1/domains/$DEDYN_NAME/ \
-    -Ss \
-    -H 'Accept: application/json' \
-    -H "Authorization: Token $DEDYN_TOKEN" \
-    -H 'Content-Type: application/json' \
-    -d "{\"acme_challenge\":\"$TOKEN\"}" \
-    > /dev/null
+# set ACME challenge (overwrite if possible, create otherwise)
+curl -X PUT "${args[@]}" -f https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/_acme-challenge.../TXT/ \
+|| $(>&2 echo "If the previous error was a 404 error, that's ok"; curl -X POST "${args[@]}" https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/)
 
 >&2 echo "Verifying challenge is set correctly. This can take up to 2 Minutes."
 >&2 echo "Current Time: `date`"
@@ -52,7 +54,7 @@ curl -X PATCH https://desec.io/api/v1/domains/$DEDYN_NAME/ \
 for i in `seq 1 60`;
 do
 
-	CURRENT=$(host -t TXT _acme-challenge.$DEDYN_NAME ns1.desec.io | grep $TOKEN)
+	CURRENT=$(host -t TXT _acme-challenge.$DEDYN_NAME ns1.desec.io | grep "$CERTBOT_VALIDATION")
 	if [ ! -z "$CURRENT" ]; then
 		break
 	fi
