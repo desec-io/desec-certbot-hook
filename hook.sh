@@ -54,7 +54,7 @@ curl -X PUT "${args[@]}" -f https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/_
 for i in `seq 1 60`;
 do
 
-	CURRENT=$(host -t TXT _acme-challenge.$DEDYN_NAME ns1.desec.io | grep "$CERTBOT_VALIDATION")
+	CURRENT=$(host -t TXT _acme-challenge.$DEDYN_NAME ns1.desec.io | grep -- "$CERTBOT_VALIDATION")
 	if [ ! -z "$CURRENT" ]; then
 		break
 	fi
