@@ -5,24 +5,24 @@
 
 (
 if [ ! -f .dedynauth ]; then
-    PATH=`pwd`/.dedynauth
-    >&2 echo "File $PATH not found. Please place .dedynauth file in appropriate location."
+    DEDYNAUTH=`pwd`/.dedynauth
+    >&2 echo "File $DEDYNAUTH not found. Please place .dedynauth file in appropriate location."
     exit 1
 fi
 
 source .dedynauth
 
 if [ -z "$DEDYN_TOKEN" ] ; then
-    PATH=`pwd`./dedynauth
-    >&2 echo "Variable \$DEDYN_TOKEN not found. Please set DEDYN_TOKEN=(your dedyn.io token) to your dedyn.io access token in $PATH, e.g."
+    DEDYNAUTH=`pwd`./dedynauth
+    >&2 echo "Variable \$DEDYN_TOKEN not found. Please set DEDYN_TOKEN=(your dedyn.io token) to your dedyn.io access token in $DEDYNAUTH, e.g."
     >&2 echo 
     >&2 echo "DEDYN_TOKEN=d41d8cd98f00b204e9800998ecf8427e"
     exit 2
 fi
 
 if [ -z "$DEDYN_NAME" ] ; then
-    PATH=`pwd`./dedynauth
-    >&2 echo "Variable \$DEDYN_NAME not found. Please set DEDYN_NAME=(your dedyn.io name) to your dedyn.io name in $PATH, e.g."
+    DEDYNAUTH=`pwd`./dedynauth
+    >&2 echo "Variable \$DEDYN_NAME not found. Please set DEDYN_NAME=(your dedyn.io name) to your dedyn.io name in $DEDYNAUTH, e.g."
     >&2 echo
     >&2 echo "DEDYN_NAME=foobar.dedyn.io"
     exit 3
@@ -45,8 +45,8 @@ args=( \
 )
 
 # set ACME challenge (overwrite if possible, create otherwise)
-curl -X PUT "${args[@]}" -f https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/_acme-challenge.../TXT/ \
-|| $(>&2 echo "If the previous error was a 404 error, that's ok"; curl -X POST "${args[@]}" https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/)
+curl -X PUT "${args[@]}" -f "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/_acme-challenge.../TXT/" \
+|| (>&2 echo "If the previous error was a 404 error, that's ok"; curl -X POST "${args[@]}" https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/)
 
 >&2 echo "Verifying challenge is set correctly. This can take up to 2 Minutes."
 >&2 echo "Current Time: `date`"
@@ -54,7 +54,7 @@ curl -X PUT "${args[@]}" -f https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/_
 for i in `seq 1 60`;
 do
 
-	CURRENT=$(host -t TXT _acme-challenge.$DEDYN_NAME ns1.desec.io | grep -- "$CERTBOT_VALIDATION")
+	CURRENT=$(host -t TXT "_acme-challenge.$DEDYN_NAME" ns1.desec.io | grep -- "$CERTBOT_VALIDATION")
 	if [ ! -z "$CURRENT" ]; then
 		break
 	fi
