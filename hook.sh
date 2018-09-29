@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This script does not need to be changed for certbots DNS challenge.
 # Please see the .dedynauth file for authentication information.
