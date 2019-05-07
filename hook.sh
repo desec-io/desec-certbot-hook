@@ -28,9 +28,15 @@ if [ -z "$DEDYN_NAME" ] ; then
     exit 3
 fi
 
+if [ -z "$CERTBOT_DOMAIN" ] ; then
+    DEDYNAUTH=`pwd`./dedynauth
+    >&2 echo "It appears that you are not running this script through certbot (\$CERTBOT_DOMAIN is unset). Please call with: certbot --manual-auth-hook=$0"
+    exit 4
+fi
+
 if [[ ! $(type -P curl) ]] ; then
     >&2 echo "Please install curl to use certbot with dedyn.io."
-    exit 4
+    exit 5
 fi
 
 >&2 echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
