@@ -36,6 +36,7 @@ was correctly published.
          --text \
          --preferred-challenges dns \
          --manual-auth-hook ./hook.sh \
+         --manual-cleanup-hook ./hook.sh \
          -d "YOURDOMAINNAME.dedyn.io" \
          certonly
 
