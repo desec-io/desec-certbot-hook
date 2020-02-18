@@ -38,7 +38,7 @@ if [ ! "$(type -P curl)" ]; then
     exit 5
 fi
 
->&2 echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
+echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
 
 # Figure out subdomain infix by removing zone name and trailing dot
 # foobar.dedyn.io gives "" while a.foobar.dedyn.io gives ".a"
@@ -57,8 +57,8 @@ args=( \
 # set ACME challenge (overwrite if possible, create otherwise)
 curl -X PUT "${args[@]}" -f "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/"
 
->&2 echo "Verifying challenge is set correctly. This can take up to 2 minutes."
->&2 echo "Current Time: $(date)"
+echo "Verifying challenge is set correctly. This can take up to 2 minutes."
+echo "Current Time: $(date)"
 
 for ((i = 0; i < 60; i++)); do
     CURRENT=$(host -t TXT "_acme-challenge$infix.$DEDYN_NAME" ns1.desec.io | grep -- "$CERTBOT_VALIDATION")
@@ -73,6 +73,6 @@ if [ -z "$CURRENT" ]; then
     exit 6
 fi
 
->&2 echo "Token published. Returning to certbot."
+echo -e '\e[32mToken published. Returning to certbot.\e[0m'
 
 )
