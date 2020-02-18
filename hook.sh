@@ -56,6 +56,10 @@ args=( \
     '-H' 'Content-Type: application/json' \
 )
 
+# Find minimum_ttl for the domain and use that instead of hardcoding a ttl.
+# This allows use on non-dynamic (dedyn.io) domains.
+minimum_ttl=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/" | tr -d '\n' | grep -o '"minimum_ttl"[[:space:]]*:[[:space:]]*[[:digit:]]*' | grep -o '[[:digit:]]*')
+
 # For wildcard certificates, we'll need multiple _acme-challenge records in the
 # same rrset. If the current rrset is empty, we simply publish the new
 # challenge. If the current rrset contains records and we have a new challenge,
@@ -74,7 +78,7 @@ fi
 
 # set ACME challenge (overwrite if possible, create otherwise)
 curl "${args[@]}" -X PUT -o /dev/null "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/" \
-    '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":['"$acme_records"'], "ttl":60}]'
+    '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":['"$acme_records"'], "ttl":'"$minimum_ttl"'}]'
 
 echo "Verifying challenge is set correctly. This can take up to 2 minutes."
 echo "Current Time: $(date)"
