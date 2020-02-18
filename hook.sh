@@ -45,17 +45,36 @@ echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
 domain=.$CERTBOT_DOMAIN
 infix=${domain%.$DEDYN_NAME}
 
+# Remove leading wildcard from infix, if present
+# *.foobar.dedyn.io gives "" while *.a.foobar.dedyn.io gives ".a"
+infix=${infix#.\*}
+
 args=( \
-    '-Ss' \
+    '-sSLf' \
     '-H' "Authorization: Token $DEDYN_TOKEN" \
     '-H' 'Accept: application/json' \
     '-H' 'Content-Type: application/json' \
-    '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":["\"'"$CERTBOT_VALIDATION"'\""], "ttl":60}]' \
-    '-o' '/dev/null' \
 )
 
+# For wildcard certificates, we'll need multiple _acme-challenge records in the
+# same rrset. If the current rrset is empty, we simply publish the new
+# challenge. If the current rrset contains records and we have a new challenge,
+# we append the new challenge to the current rrset. If for some reason the new
+# challenge is already in the rrset, we re-publish the current rrset as-is.
+# Consider using the included cleanup hook with certbot's --manual-cleanup-hook
+# to prevent challenges from accumulating.
+acme_records=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/?subname=_acme-challenge$infix&type=TXT" \
+    | tr -d '\n' | grep -o '"records"[[:space:]]*:[[:space:]]*\[[^]]*\]' | grep -o '"\\".*\\""')
+
+if [ -z "$acme_records" ]; then
+    acme_records='"\"'"$CERTBOT_VALIDATION"'\""'
+elif [[ ! $acme_records =~ "$CERTBOT_VALIDATION" ]]; then
+    acme_records+=',"\"'"$CERTBOT_VALIDATION"'\""'
+fi
+
 # set ACME challenge (overwrite if possible, create otherwise)
-curl -X PUT "${args[@]}" -f "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/"
+curl "${args[@]}" -X PUT -o /dev/null "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/" \
+    '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":['"$acme_records"'], "ttl":60}]'
 
 echo "Verifying challenge is set correctly. This can take up to 2 minutes."
 echo "Current Time: $(date)"
