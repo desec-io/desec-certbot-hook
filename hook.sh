@@ -5,6 +5,10 @@
 
 (
 
+shopt -s extglob
+
+[[ ! $CERTBOT_AUTH_OUTPUT =~ "$CERTBOT_VALIDATION" ]] && CERTBOT_AUTH_OUTPUT=''
+
 DEDYNAUTH=$(pwd)/.dedynauth
 
 if [ ! -f "$DEDYNAUTH" ]; then
@@ -29,7 +33,9 @@ if [ -z "$DEDYN_NAME" ]; then
 fi
 
 if [ -z "$CERTBOT_DOMAIN" ]; then
-    >&2 echo "It appears that you are not running this script through certbot (\$CERTBOT_DOMAIN is unset). Please call with: certbot --manual-auth-hook=$0"
+    [ -n "$CERTBOT_AUTH_OUTPUT" ] \
+    && >&2 echo "It appears that you are not running this script through certbot (\$CERTBOT_DOMAIN is unset). Please call with: certbot --manual-cleanup-hook=$0" \
+    || >&2 echo "It appears that you are not running this script through certbot (\$CERTBOT_DOMAIN is unset). Please call with: certbot --manual-auth-hook=$0"
     exit 4
 fi
 
@@ -38,7 +44,9 @@ if [ ! "$(type -P curl)" ]; then
     exit 5
 fi
 
-echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
+[ -n "$CERTBOT_AUTH_OUTPUT" ] \
+&& echo "Deleting challenge ${CERTBOT_VALIDATION} ..." \
+|| echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
 
 # Figure out subdomain infix by removing zone name and trailing dot
 # foobar.dedyn.io gives "" while a.foobar.dedyn.io gives ".a"
@@ -60,42 +68,56 @@ args=( \
 # This allows use on non-dynamic (dedyn.io) domains.
 minimum_ttl=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/" | tr -d '\n' | grep -o '"minimum_ttl"[[:space:]]*:[[:space:]]*[[:digit:]]*' | grep -o '[[:digit:]]*')
 
-# For wildcard certificates, we'll need multiple _acme-challenge records in the
-# same rrset. If the current rrset is empty, we simply publish the new
-# challenge. If the current rrset contains records and we have a new challenge,
-# we append the new challenge to the current rrset. If for some reason the new
-# challenge is already in the rrset, we re-publish the current rrset as-is.
-# Consider using the included cleanup hook with certbot's --manual-cleanup-hook
-# to prevent challenges from accumulating.
+# Fetch and parse the current rrset for manipulation below.
 acme_records=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/?subname=_acme-challenge$infix&type=TXT" \
     | tr -d '\n' | grep -o '"records"[[:space:]]*:[[:space:]]*\[[^]]*\]' | grep -o '"\\".*\\""')
 
-if [ -z "$acme_records" ]; then
-    acme_records='"\"'"$CERTBOT_VALIDATION"'\""'
-elif [[ ! $acme_records =~ "$CERTBOT_VALIDATION" ]]; then
-    acme_records+=',"\"'"$CERTBOT_VALIDATION"'\""'
+if [ -n "$CERTBOT_AUTH_OUTPUT" ]; then
+    # Delete all occurrences of the current _acme-challenge from the rrset. If
+    # nothing remains, publish a blank "records" array to delete the rrset. Else,
+    # republish the remaining challenges.
+    acme_records=$acme_records,
+    acme_records=${acme_records//*([[:space:]])'"\"'"$CERTBOT_VALIDATION"'\""'*([[:space:]])','*([[:space:]])/}
+    [ -n "$acme_records" ] && acme_records=${acme_records:0:-1}
+else
+    # If the current rrset is empty, we simply publish the new challenge. If
+    # the current rrset contains records and we have a new challenge, we append
+    # the new challenge to the current rrset. If for some reason the new
+    # challenge is already in the rrset, we re-publish the current rrset as-is.
+    if [ -z "$acme_records" ]; then
+	acme_records='"\"'"$CERTBOT_VALIDATION"'\""'
+    elif [[ ! $acme_records =~ "$CERTBOT_VALIDATION" ]]; then
+	acme_records+=',"\"'"$CERTBOT_VALIDATION"'\""'
+    fi
 fi
 
 # set ACME challenge (overwrite if possible, create otherwise)
 curl "${args[@]}" -X PUT -o /dev/null "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/" \
     '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":['"$acme_records"'], "ttl":'"$minimum_ttl"'}]'
 
-echo "Verifying challenge is set correctly. This can take up to 2 minutes."
+[ -n "$CERTBOT_AUTH_OUTPUT" ] \
+&& echo "Verifying challenge has been deleted. This can take up to 2 minutes." \
+|| echo "Verifying challenge is set correctly. This can take up to 2 minutes."
 echo "Current Time: $(date)"
 
 for ((i = 0; i < 60; i++)); do
     CURRENT=$(host -t TXT "_acme-challenge$infix.$DEDYN_NAME" ns1.desec.io | grep -- "$CERTBOT_VALIDATION")
-    if [ -n "$CURRENT" ]; then
+    if [ ${CERTBOT_AUTH_OUTPUT:+"-z"} "$CURRENT" ]; then
 	break
     fi
     sleep 2
 done
 
-if [ -z "$CURRENT" ]; then
+if [ -z "$CURRENT" ] && [ -z "$CERTBOT_AUTH_OUTPUT" ]; then
     >&2 echo "Token could not be published. Please check your dedyn credentials."
+    exit 6
+elif [ -n "$CURRENT" ] && [ -n "$CERTBOT_AUTH_OUTPUT" ]; then
+    >&2 echo "Token could not be deleted. Please check your dedyn credentials."
     exit 6
 fi
 
-echo -e '\e[32mToken published. Returning to certbot.\e[0m'
+[ -n "$CERTBOT_AUTH_OUTPUT" ] \
+&& echo -e '\e[32mToken deleted. Returning to certbot.\e[0m' \
+|| echo -e '\e[32mToken published. Returning to certbot.\e[0m'
 
 )
