@@ -96,25 +96,7 @@ curl "${args[@]}" -X PUT -o /dev/null "https://desec.io/api/v1/domains/$DEDYN_NA
     '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":['"$acme_records"'], "ttl":'"$minimum_ttl"'}]'
 
 [ -n "$CERTBOT_AUTH_OUTPUT" ] \
-&& echo "Verifying challenge has been deleted. This can take up to 2 minutes." \
-|| echo "Verifying challenge is set correctly. This can take up to 2 minutes."
-echo "Current Time: $(date)"
-
-for ((i = 0; i < 60; i++)); do
-    CURRENT=$(host -t TXT "_acme-challenge$infix.$DEDYN_NAME" ns1.desec.io | grep -- "$CERTBOT_VALIDATION")
-    if [ ${CERTBOT_AUTH_OUTPUT:+"-z"} "$CURRENT" ]; then
-	break
-    fi
-    sleep 2
-done
-
-if [ -z "$CURRENT" ] && [ -z "$CERTBOT_AUTH_OUTPUT" ]; then
-    >&2 echo "Token could not be published. Please check your dedyn credentials."
-    exit 6
-elif [ -n "$CURRENT" ] && [ -n "$CERTBOT_AUTH_OUTPUT" ]; then
-    >&2 echo "Token could not be deleted. Please check your dedyn credentials."
-    exit 6
-fi
+|| (echo "Waiting 120s for changes be published."; date; sleep 120)
 
 [ -n "$CERTBOT_AUTH_OUTPUT" ] \
 && echo -e '\e[32mToken deleted. Returning to certbot.\e[0m' \
