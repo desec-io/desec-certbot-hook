@@ -12,7 +12,11 @@ shopt -s extglob
 DEDYNAUTH=$(pwd)/.dedynauth
 
 if [ ! -f "$DEDYNAUTH" ]; then
-    >&2 echo "File $DEDYNAUTH not found. Please place .dedynauth file in appropriate location."
+    DEDYNAUTH=$(dirname $0)/.dedynauth
+fi
+
+if [ ! -f "$DEDYNAUTH" ]; then
+    >&2 echo "File $(pwd)/.dedynauth not found. Please place .dedynauth file in appropriate location."
     exit 1
 fi
 
