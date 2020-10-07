@@ -48,14 +48,16 @@ fi
 && echo "Deleting challenge ${CERTBOT_VALIDATION} ..." \
 || echo "Setting challenge to ${CERTBOT_VALIDATION} ..."
 
-# Figure out subdomain infix by removing zone name and trailing dot
-# foobar.dedyn.io gives "" while a.foobar.dedyn.io gives ".a"
-domain=.$CERTBOT_DOMAIN
-infix=${domain%.$DEDYN_NAME}
+# Determine the full name of the _acme-challenge record we need to create.
+# Strip off any leading wildcard, then prepend "_acme-challenge." to the domain.
+domain="_acme-challenge.${CERTBOT_DOMAIN#\*.}"
 
-# Remove leading wildcard from infix, if present
-# *.foobar.dedyn.io gives "" while *.a.foobar.dedyn.io gives ".a"
-infix=${infix#.\*}
+# Split the _acme-challenge domain into a subdomain relative to $DEDYN_NAME.
+if [ "${domain}" = "${DEDYN_NAME}" ]; then
+    subname=""
+else
+    subname="${domain%.$DEDYN_NAME}"
+fi
 
 args=( \
     '-sSLf' \
@@ -69,7 +71,7 @@ args=( \
 minimum_ttl=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/" | tr -d '\n' | grep -o '"minimum_ttl"[[:space:]]*:[[:space:]]*[[:digit:]]*' | grep -o '[[:digit:]]*$')
 
 # Fetch and parse the current rrset for manipulation below.
-acme_records=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/?subname=_acme-challenge$infix&type=TXT" \
+acme_records=$(curl "${args[@]}" -X GET "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/?subname=$subname&type=TXT" \
     | tr -d '\n' | grep -o '"records"[[:space:]]*:[[:space:]]*\[[^]]*\]' | grep -o '"\\".*\\""')
 
 if [ -n "$CERTBOT_AUTH_OUTPUT" ]; then
@@ -93,7 +95,7 @@ fi
 
 # set ACME challenge (overwrite if possible, create otherwise)
 curl "${args[@]}" -X PUT -o /dev/null "https://desec.io/api/v1/domains/$DEDYN_NAME/rrsets/" \
-    '-d' '[{"subname":"_acme-challenge'"$infix"'", "type":"TXT", "records":['"$acme_records"'], "ttl":'"$minimum_ttl"'}]'
+    '-d' '[{"subname":"'"$subname"'", "type":"TXT", "records":['"$acme_records"'], "ttl":'"$minimum_ttl"'}]'
 
 [ -n "$CERTBOT_AUTH_OUTPUT" ] \
 || (echo "Waiting 120s for changes be published."; date; sleep 120)
